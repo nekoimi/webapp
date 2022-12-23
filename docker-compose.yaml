@@ -6,8 +6,9 @@ services:
       - "8082:8080"
     environment:
       PORT: 8080
-      ENV_DEF: SERVER_API APP_NAME
+      ENV_DEF: SERVER_API APP_NAME TEST_XXXX
       SERVER_API: http://www.baidu.com
       APP_NAME: /
+      TEST_XXXX: "111"
     volumes:
       - ./dist:/workspace

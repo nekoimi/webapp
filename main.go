@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	AppName = "webapp-go"
-	EnvPort = "PORT"
-	EnvDef  = "ENV_DEF"
+	AppName      = "webapp-go"
+	AppEnvPrefix = "WEBAPP_ENV_"
+	EnvPort      = "PORT"
+	EnvDef       = "ENV_DEF"
 )
 
 var (
@@ -84,6 +85,21 @@ func initEnv() {
 			if ok {
 				log.Infof("Read Env: %s => %s", envName, envValue)
 				replaceEnvMap[envName] = envValue
+			}
+		}
+	}
+	systemEnvs := os.Environ()
+	for _, systemEnv := range systemEnvs {
+		parts := strings.SplitN(systemEnv, "=", 2)
+		if len(parts) == 2 {
+			systemEnvName := parts[0]
+			if strings.HasPrefix(systemEnvName, AppEnvPrefix) {
+				envName = strings.Replace(systemEnvName, AppEnvPrefix, "", 1)
+				envValue, ok = os.LookupEnv(envName)
+				if ok {
+					log.Infof("Read Env: %s => %s", envName, envValue)
+					replaceEnvMap[envName] = envValue
+				}
 			}
 		}
 	}
@@ -186,7 +202,6 @@ func LoopFileHandle(fileAbs string, fileHandle FileHandle) {
 				log.Errorf("Read dir [%s] error, %s", fileAbs, err.Error())
 			} else {
 				for _, fileInfo = range fileInfos {
-					log.Infof("FILE_ABS: %s", fileAbs)
 					LoopFileHandle(path.Join(fileAbs, fileInfo.Name()), fileHandle)
 				}
 			}
