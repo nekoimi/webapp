@@ -5,7 +5,7 @@ ENV GOOS=linux
 ENV GOARCH=amd64
 
 WORKDIR /build
-COPY main.go .
+COPY . .
 RUN go install
 RUN go build --ldflags "-extldflags -static" -o webapp-go main.go
 
