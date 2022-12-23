@@ -6,6 +6,7 @@ ENV GOARCH=amd64
 
 WORKDIR /build
 COPY main.go .
+RUN go install
 RUN go build --ldflags "-extldflags -static" -o webapp-go main.go
 
 FROM alpine:3.16.3
