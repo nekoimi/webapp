@@ -58,7 +58,7 @@ step3:
 version: "3.6"
 services:
   test:
-    image: nekoimi/webapp:test
+    image: nekoimi/webapp:latest
     ports:
       - "80:80"
     environment:
