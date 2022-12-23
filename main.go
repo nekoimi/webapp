@@ -219,6 +219,7 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 	fileServer := http.FileServer(root)
 	http.Handle("/", fileServer)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Server", AppName)
 		fileServer.ServeHTTP(w, r)
 	})
 }
