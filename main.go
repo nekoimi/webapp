@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/op/go-logging"
 	"io"
@@ -15,21 +16,22 @@ import (
 )
 
 const (
-	EnvDef  = "ENV_DEF"
+	AppName = "webapp-go"
 	EnvPort = "PORT"
+	EnvDef  = "ENV_DEF"
 )
 
 var (
 	port         = 80
 	workspaceDir = "/workspace"
 	rootDir      = "/public"
-	log          = logging.MustGetLogger("webapp-go")
+	log          = logging.MustGetLogger(AppName)
 	logFormat    = logging.MustStringFormatter(
 		`%{color}%{time:15:04:05} [%{level}] %{color:reset} %{message}`,
 	)
 	replaceEnvMap    = make(map[string]string)
-	replaceEnvExtMap = map[string]int{
-		".html": 1, ".js": 1, ".css": 1, ".json": 1,
+	replaceEnvExtMap = map[string]bool{
+		".html": true, ".js": true, ".css": true, ".json": true,
 	}
 )
 
@@ -43,28 +45,10 @@ func init() {
 	// init log
 	initLog()
 
-	// 初始化环境变量配置
-	var ok bool
-	var envResult string
-	var envName string
-	var envValue string
-	envResult, ok = os.LookupEnv(EnvPort)
-	if ok {
-		port, _ = strconv.Atoi(envResult)
-		log.Infof("Read Env: %s => %s", EnvPort, port)
-	}
-	envResult, ok = os.LookupEnv(EnvDef)
-	if ok {
-		log.Infof("Read Env: %s => %s", EnvDef, envResult)
-		for _, envName = range strings.Split(envResult, " ") {
-			envValue, ok = os.LookupEnv(envName)
-			if ok {
-				log.Infof("Read Env: %s => %s", envName, envValue)
-				replaceEnvMap[envName] = envValue
-			}
-		}
-	}
-	// 更新静态资源
+	// init env
+	initEnv()
+
+	// init static resources
 	initStaticResources()
 }
 
@@ -82,6 +66,29 @@ func initLog() {
 	logging.SetBackend(infoLeveled, errorLeveled)
 }
 
+func initEnv() {
+	var ok bool
+	var envResult string
+	var envName string
+	var envValue string
+	envResult, ok = os.LookupEnv(EnvPort)
+	if ok {
+		port, _ = strconv.Atoi(envResult)
+		log.Infof("Read Env: %s => %d", EnvPort, port)
+	}
+	envResult, ok = os.LookupEnv(EnvDef)
+	if ok {
+		log.Infof("Read Env: %s => %s", EnvDef, envResult)
+		for _, envName = range strings.Split(envResult, " ") {
+			envValue, ok = os.LookupEnv(envName)
+			if ok {
+				log.Infof("Read Env: %s => %s", envName, envValue)
+				replaceEnvMap[envName] = envValue
+			}
+		}
+	}
+}
+
 func initStaticResources() {
 	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	// Copy workspace dir to root dir, and replace env
@@ -94,6 +101,7 @@ func initStaticResources() {
 		} else {
 			ext := filepath.Ext(toFileAbs)
 			if _, ok := replaceEnvExtMap[ext]; !ok {
+				log.Infof("Ext: %s, Ignore replace.", ext)
 				return nil
 			}
 			for name, value := range replaceEnvMap {
@@ -109,34 +117,44 @@ func initStaticResources() {
 
 func CopyFile(source, target string) error {
 	var err error
+	var sourceName string
+	var targetDir string
 	var sourceFd *os.File
 	var targetFd *os.File
 	var sourceInfo os.FileInfo
 
+	if sourceInfo, err = os.Stat(source); err != nil {
+		return errors.New(fmt.Sprintf("[CopyFile] Stat source file [%s] error, %s", source, err.Error()))
+	}
+	sourceName = sourceInfo.Name()
+	targetDir = strings.Replace(target, sourceName, "", -1)
+	if _, err = os.Stat(targetDir); err != nil {
+		if err = os.MkdirAll(targetDir, os.ModeDir); err != nil {
+			return errors.New(fmt.Sprintf("[CopyFile] Mkdir target dir [%s] error, %s", targetDir, err.Error()))
+		}
+	}
+
 	if sourceFd, err = os.Open(source); err != nil {
-		return err
+		return errors.New(fmt.Sprintf("[CopyFile] Open source file [%s] error, %s", source, err.Error()))
 	}
 	defer sourceFd.Close()
 
 	if targetFd, err = os.Create(target); err != nil {
-		return err
+		return errors.New(fmt.Sprintf("[CopyFile] Craete target file [%s] error, %s", target, err.Error()))
 	}
 	defer targetFd.Close()
 
 	if _, err = io.Copy(targetFd, sourceFd); err != nil {
-		return err
+		return errors.New(fmt.Sprintf("[CopyFile] Copy file [%s] to [%s] error, %s", source, target, err.Error()))
 	}
 
-	if sourceInfo, err = os.Stat(source); err != nil {
-		return err
-	}
 	return os.Chmod(target, sourceInfo.Mode())
 }
 
 func ReplaceEnvFile(fileAbs, envName, envValue string) error {
 	readBytes, err := ioutil.ReadFile(fileAbs)
 	if err != nil {
-		return err
+		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Read file [%s] error, %s", fileAbs, err.Error()))
 	}
 	log.Infof("Replace %s with %s in the %s", envName, envValue, fileAbs)
 	var replaceContent = string(readBytes)
@@ -151,7 +169,7 @@ func ReplaceEnvFile(fileAbs, envName, envValue string) error {
 	replaceContent = strings.ReplaceAll(replaceContent, envName, envValue)
 	err = ioutil.WriteFile(fileAbs, []byte(replaceContent), 0)
 	if err != nil {
-		return err
+		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Write file [%s] error, %s", fileAbs, err.Error()))
 	}
 	return nil
 }
@@ -161,13 +179,14 @@ func LoopFileHandle(fileAbs string, fileHandle FileHandle) {
 	var fileInfo os.FileInfo
 	var fileInfos []os.FileInfo
 	if fileInfo, err = os.Stat(fileAbs); err != nil {
-		log.Error(err.Error())
+		log.Errorf("Stat file [%s] error, %s", fileAbs, err.Error())
 	} else {
 		if fileInfo.IsDir() {
 			if fileInfos, err = ioutil.ReadDir(fileAbs); err != nil {
-				log.Error(err.Error())
+				log.Errorf("Read dir [%s] error, %s", fileAbs, err.Error())
 			} else {
 				for _, fileInfo = range fileInfos {
+					log.Infof("FILE_ABS: %s", fileAbs)
 					LoopFileHandle(path.Join(fileAbs, fileInfo.Name()), fileHandle)
 				}
 			}
