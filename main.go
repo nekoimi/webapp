@@ -118,7 +118,7 @@ func CopyFile(source, target string) error {
 	}
 	defer sourceFd.Close()
 
-	if targetFd, err = os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+	if targetFd, err = os.Create(target); err != nil {
 		return err
 	}
 	defer targetFd.Close()

@@ -1,0 +1,13 @@
+version: "3.6"
+services:
+  test:
+    image: nekoimi/webapp:test
+    ports:
+      - "8082:8080"
+    environment:
+      PORT: 8080
+      ENV_DEF: SERVER_API APP_NAME
+      SERVER_API: http://www.baidu.com
+      APP_NAME: /
+    volumes:
+      - ./dist:/workspace
