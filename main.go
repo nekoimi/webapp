@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -21,7 +20,7 @@ const (
 )
 
 var (
-	port         = 8081
+	port         = 80
 	workspaceDir = "/workspace"
 	rootDir      = "/public"
 	log          = logging.MustGetLogger("webapp-go")
@@ -189,7 +188,6 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 }
 
 func main() {
-	runtime.GOMAXPROCS(1)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), WebAppFileServer(http.Dir(rootDir)))
 	if err != nil {
 		log.Error(err.Error())
