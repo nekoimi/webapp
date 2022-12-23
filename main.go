@@ -68,6 +68,7 @@ func initLog() {
 }
 
 func initEnv() {
+	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	var ok bool
 	var envResult string
 	var envName string
@@ -90,20 +91,20 @@ func initEnv() {
 	}
 	systemEnvs := os.Environ()
 	for _, systemEnv := range systemEnvs {
-		log.Infof("SystemEnv: %s", systemEnv)
 		parts := strings.SplitN(systemEnv, "=", 2)
-		if len(parts) >= 1 {
+		if len(parts) == 2 {
 			systemEnvName := parts[0]
 			if strings.HasPrefix(systemEnvName, AppEnvPrefix) {
-				envName = strings.Replace(systemEnvName, AppEnvPrefix, "", 1)
-				envValue, ok = os.LookupEnv(envName)
+				envValue, ok = os.LookupEnv(systemEnvName)
 				if ok {
-					log.Infof("Read Env: %s => %s", envName, envValue)
-					replaceEnvMap[envName] = envValue
+					replaceEnvName := strings.Replace(systemEnvName, AppEnvPrefix, "", 1)
+					log.Infof("Read Env: %s => %s", replaceEnvName, envValue)
+					replaceEnvMap[replaceEnvName] = envValue
 				}
 			}
 		}
 	}
+	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
 func initStaticResources() {
