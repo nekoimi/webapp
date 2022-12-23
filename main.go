@@ -181,8 +181,12 @@ func ReplaceEnvFile(fileAbs, envName, envValue string) error {
 		replaceContent = strings.ReplaceAll(replaceContent, "/"+envName, envName)
 		replaceContent = strings.ReplaceAll(replaceContent, envName+"/", envName)
 	} else {
-		replaceContent = strings.ReplaceAll(replaceContent, "/"+envName, envName)
-		replaceContent = strings.ReplaceAll(replaceContent, envName+"/", envName)
+		if strings.HasPrefix(envValue, "/") {
+			replaceContent = strings.ReplaceAll(replaceContent, "/"+envName, envName)
+		}
+		if strings.HasSuffix(envValue, "/") {
+			replaceContent = strings.ReplaceAll(replaceContent, envName+"/", envName)
+		}
 	}
 	replaceContent = strings.ReplaceAll(replaceContent, envName, envValue)
 	err = ioutil.WriteFile(fileAbs, []byte(replaceContent), 0)
