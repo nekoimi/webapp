@@ -90,8 +90,9 @@ func initEnv() {
 	}
 	systemEnvs := os.Environ()
 	for _, systemEnv := range systemEnvs {
+		log.Infof("SystemEnv: %s", systemEnv)
 		parts := strings.SplitN(systemEnv, "=", 2)
-		if len(parts) == 2 {
+		if len(parts) >= 1 {
 			systemEnvName := parts[0]
 			if strings.HasPrefix(systemEnvName, AppEnvPrefix) {
 				envName = strings.Replace(systemEnvName, AppEnvPrefix, "", 1)
@@ -100,8 +101,6 @@ func initEnv() {
 					log.Infof("Read Env: %s => %s", envName, envValue)
 					replaceEnvMap[envName] = envValue
 				}
-			} else {
-				log.Infof("SystemEnv: %s, Ignore", systemEnvName)
 			}
 		}
 	}
