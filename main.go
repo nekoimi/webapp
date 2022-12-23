@@ -100,6 +100,8 @@ func initEnv() {
 					log.Infof("Read Env: %s => %s", envName, envValue)
 					replaceEnvMap[envName] = envValue
 				}
+			} else {
+				log.Infof("SystemEnv: %s, Ignore", systemEnvName)
 			}
 		}
 	}
