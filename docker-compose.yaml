@@ -3,13 +3,14 @@ services:
   test:
     image: nekoimi/webapp:test
     ports:
-      - "8082:8080"
+      - "80:80"
     environment:
-      PORT: 8080
-      ENV_DEF: SERVER_API APP_NAME TEST_XXXX
-      SERVER_API: http://www.baidu.com
-      APP_NAME: /
-      WEBAPP_ENV.API_BASE: test_001
-      WEBAPP_ENV.BASE_PATH: test_001
+      PORT: 80
+      WEBAPP_ENV.API_SERVER_URL: http://127.0.0.1/api
+      WEBAPP_ENV.APP_NAME: 测试web
+      WEBAPP_ENV.BACKGROUND_IMAGE: image.png
+      WEBAPP_ENV.BASE_URL: /baseurl/
+      WEBAPP_ENV.USERNAME: user001
+      WEBAPP_ENV.PASSWORD: user001_pwd
     volumes:
-      - ./dist:/workspace
+      - ./example:/workspace
