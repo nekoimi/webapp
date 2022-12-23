@@ -17,7 +17,7 @@ import (
 
 const (
 	AppName      = "webapp-go"
-	AppEnvPrefix = "WEBAPP_ENV_"
+	AppEnvPrefix = "WEBAPP_ENV."
 	EnvPort      = "PORT"
 	EnvDef       = "ENV_DEF"
 )

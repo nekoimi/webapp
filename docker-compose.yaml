@@ -9,7 +9,7 @@ services:
       ENV_DEF: SERVER_API APP_NAME TEST_XXXX
       SERVER_API: http://www.baidu.com
       APP_NAME: /
-      TEST_XXXX: "111"
-      WEBAPP_ENV_TEST_01: test_001
+      WEBAPP_ENV.API_BASE: test_001
+      WEBAPP_ENV.BASE_PATH: test_001
     volumes:
       - ./dist:/workspace
