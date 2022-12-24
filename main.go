@@ -232,5 +232,7 @@ func main() {
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), WebAppFileServer(http.Dir(rootDir)))
 	if err != nil {
 		log.Error(err.Error())
+	} else {
+		log.Infof("webapp-go started on port %s", port)
 	}
 }
