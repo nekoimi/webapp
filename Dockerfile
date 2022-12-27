@@ -3,6 +3,7 @@ FROM golang:1.19.4 AS builder
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
+ENV GOPROXY=https://mirrors.aliyun.com/goproxy/
 
 WORKDIR /build
 COPY . .
