@@ -34,6 +34,7 @@ var (
 	replaceEnvExtMap = map[string]bool{
 		".html": true, ".js": true, ".css": true, ".json": true,
 	}
+	staticResourceMap = make(map[string]bool)
 )
 
 type FileHandle func(fileAbs string) error
@@ -112,6 +113,10 @@ func initStaticResources() {
 	// Copy workspace dir to root dir, and replace env
 	var err error
 	LoopFileHandle(workspaceDir, func(fileAbs string) error {
+		// cache static resource path
+		resourcePath := strings.ReplaceAll(fileAbs, "workspaceDir", "")
+		staticResourceMap[resourcePath] = true
+
 		toFileAbs := strings.ReplaceAll(fileAbs, workspaceDir, rootDir)
 		log.Infof("Copy %s to %s", fileAbs, toFileAbs)
 		if err = CopyFile(fileAbs, toFileAbs); err != nil {
@@ -220,11 +225,23 @@ func LoopFileHandle(fileAbs string, fileHandle FileHandle) {
 }
 
 func WebAppFileServer(root http.FileSystem) http.Handler {
+	const indexPage = "/index.html"
 	fileServer := http.FileServer(root)
 	http.Handle("/", fileServer)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Server", AppName)
-		fileServer.ServeHTTP(w, r)
+
+		reqPath := r.URL.Path
+		reqPath = path.Clean(reqPath)
+		if !strings.HasPrefix(reqPath, "/") {
+			reqPath = "/" + reqPath
+		}
+		if _, ok := staticResourceMap[reqPath]; ok {
+			fileServer.ServeHTTP(w, r)
+		} else {
+			r.URL.Path = indexPage
+			fileServer.ServeHTTP(w, r)
+		}
 	})
 }
 
