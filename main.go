@@ -34,7 +34,9 @@ var (
 	replaceEnvExtMap = map[string]bool{
 		".html": true, ".js": true, ".css": true, ".json": true,
 	}
-	staticResourceMap = make(map[string]bool)
+	staticResourceMap = map[string]bool{
+		"/favicon.ico": true,
+	}
 )
 
 type FileHandle func(fileAbs string) error
@@ -114,7 +116,8 @@ func initStaticResources() {
 	var err error
 	LoopFileHandle(workspaceDir, func(fileAbs string) error {
 		// cache static resource path
-		resourcePath := strings.ReplaceAll(fileAbs, "workspaceDir", "")
+		resourcePath := strings.ReplaceAll(fileAbs, workspaceDir, "")
+		log.Infof("ResourcePath: %s", resourcePath)
 		staticResourceMap[resourcePath] = true
 
 		toFileAbs := strings.ReplaceAll(fileAbs, workspaceDir, rootDir)
@@ -236,11 +239,20 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 		if !strings.HasPrefix(reqPath, "/") {
 			reqPath = "/" + reqPath
 		}
-		if _, ok := staticResourceMap[reqPath]; ok {
+
+		if reqPath == "/" {
 			fileServer.ServeHTTP(w, r)
 		} else {
-			r.URL.Path = indexPage
-			fileServer.ServeHTTP(w, r)
+			if _, ok := staticResourceMap[reqPath]; ok {
+				fileServer.ServeHTTP(w, r)
+			} else {
+				if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
+					log.Errorf("Custom 404 handler error, [%s] %s", reqPath, err.Error())
+					fileServer.ServeHTTP(w, r)
+				} else {
+					w.Write(indexBytes)
+				}
+			}
 		}
 	})
 }
