@@ -16,18 +16,20 @@ import (
 )
 
 const (
-	AppName      = "webapp-go"
-	AppEnvPrefix = "WEBAPP_ENV."
-	EnvPort      = "PORT"
-	EnvDef       = "ENV_DEF"
+	AppName                  = "webapp-go"
+	AppEnvPrefix             = "WEBAPP_ENV."
+	EnvPort                  = "PORT"
+	EnvDef                   = "ENV_DEF"
+	EnvNotFoundRedirectIndex = "REDIRECT_INDEX"
 )
 
 var (
-	port         = 80
-	workspaceDir = "/workspace"
-	rootDir      = "/public"
-	log          = logging.MustGetLogger(AppName)
-	logFormat    = logging.MustStringFormatter(
+	port          = 80
+	redirectIndex = true
+	workspaceDir  = "/workspace"
+	rootDir       = "/public"
+	log           = logging.MustGetLogger(AppName)
+	logFormat     = logging.MustStringFormatter(
 		`%{color}%{time:15:04:05} [%{level}] %{color:reset} %{message}`,
 	)
 	replaceEnvMap    = make(map[string]string)
@@ -80,6 +82,11 @@ func initEnv() {
 	if ok {
 		port, _ = strconv.Atoi(envResult)
 		log.Infof("Read Env: %s => %d", EnvPort, port)
+	}
+	envResult, ok = os.LookupEnv(EnvNotFoundRedirectIndex)
+	if ok {
+		redirectIndex, _ = strconv.ParseBool(envResult)
+		log.Infof("Read Env: %s => %d", EnvNotFoundRedirectIndex, redirectIndex)
 	}
 	envResult, ok = os.LookupEnv(EnvDef)
 	if ok {
@@ -234,23 +241,27 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Server", AppName)
 
-		reqPath := r.URL.Path
-		reqPath = path.Clean(reqPath)
-		if !strings.HasPrefix(reqPath, "/") {
-			reqPath = "/" + reqPath
-		}
-
-		if reqPath == "/" {
+		if !redirectIndex {
 			fileServer.ServeHTTP(w, r)
 		} else {
-			if _, ok := staticResourceMap[reqPath]; ok {
+			reqPath := r.URL.Path
+			reqPath = path.Clean(reqPath)
+			if !strings.HasPrefix(reqPath, "/") {
+				reqPath = "/" + reqPath
+			}
+
+			if strings.HasSuffix(reqPath, "/") {
 				fileServer.ServeHTTP(w, r)
 			} else {
-				if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
-					log.Errorf("Custom 404 handler error, [%s] %s", reqPath, err.Error())
+				if _, ok := staticResourceMap[reqPath]; ok {
 					fileServer.ServeHTTP(w, r)
 				} else {
-					w.Write(indexBytes)
+					if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
+						log.Errorf("Custom 404 handler error, [%s] %s", reqPath, err.Error())
+						fileServer.ServeHTTP(w, r)
+					} else {
+						w.Write(indexBytes)
+					}
 				}
 			}
 		}
