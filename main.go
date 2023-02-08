@@ -244,24 +244,29 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 		if !redirectIndex {
 			fileServer.ServeHTTP(w, r)
 		} else {
-			reqPath := r.URL.Path
-			reqPath = path.Clean(reqPath)
-			if !strings.HasPrefix(reqPath, "/") {
-				reqPath = "/" + reqPath
+			originalPath := r.URL.Path
+			requestPath := path.Clean(originalPath)
+			if !strings.HasPrefix(requestPath, "/") {
+				requestPath = "/" + requestPath
 			}
 
-			if strings.HasSuffix(reqPath, "/") {
+			if strings.HasSuffix(originalPath, "/") && requestPath != "/" {
+				requestPath = requestPath + "/"
+			}
+
+			if strings.HasSuffix(requestPath, "/") {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			if _, ok := staticResourceMap[requestPath]; ok {
 				fileServer.ServeHTTP(w, r)
 			} else {
-				if _, ok := staticResourceMap[reqPath]; ok {
+				if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
+					log.Errorf("Custom 404 handler error, [%s] %s", requestPath, err.Error())
 					fileServer.ServeHTTP(w, r)
 				} else {
-					if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
-						log.Errorf("Custom 404 handler error, [%s] %s", reqPath, err.Error())
-						fileServer.ServeHTTP(w, r)
-					} else {
-						w.Write(indexBytes)
-					}
+					w.Write(indexBytes)
 				}
 			}
 		}
