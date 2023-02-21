@@ -3,6 +3,7 @@ variables:
 
 stages:
   - build
+  - push
 
 build-job:
   stage: build
@@ -11,6 +12,14 @@ build-job:
   tags:
     - docker
   script:
-    - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_ACCESS_TOKEN
     - docker build -t $DOCKERHUB_IMAGE .
+
+push-job:
+  stage: push
+  only:
+    - master
+  tags:
+    - docker
+  script:
+    - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_ACCESS_TOKEN
     - docker push $DOCKERHUB_IMAGE
