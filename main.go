@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -32,6 +33,7 @@ var (
 	logFormat     = logging.MustStringFormatter(
 		`%{color}%{time:15:04:05} [%{level}] %{color:reset} %{message}`,
 	)
+	sortEnvKeys      []string
 	replaceEnvMap    = make(map[string]string)
 	replaceEnvExtMap = map[string]bool{
 		".html": true, ".js": true, ".css": true, ".json": true,
@@ -114,6 +116,19 @@ func initEnv() {
 			}
 		}
 	}
+
+	sortEnvKeys = make([]string, 0, len(replaceEnvMap))
+	for k := range replaceEnvMap {
+		sortEnvKeys = append(sortEnvKeys, k)
+	}
+
+	sort.Slice(sortEnvKeys, func(i, j int) bool {
+		return len(sortEnvKeys[i]) > len(sortEnvKeys[j])
+	})
+
+	for _, key := range sortEnvKeys {
+		log.Infof("Sort Env: %s", key)
+	}
 	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
@@ -137,8 +152,9 @@ func initStaticResources() {
 				log.Infof("Ext: %s, Ignore replace.", ext)
 				return nil
 			}
-			for name, value := range replaceEnvMap {
-				if err = ReplaceEnvFile(toFileAbs, name, value); err != nil {
+
+			for _, k := range sortEnvKeys {
+				if err = ReplaceEnvFile(toFileAbs, k, replaceEnvMap[k]); err != nil {
 					return err
 				}
 			}
