@@ -266,15 +266,17 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 				requestPath = "/" + requestPath
 			}
 
-			if strings.HasSuffix(originalPath, "/") && requestPath != "/" {
-				requestPath = requestPath + "/"
-			}
+			// if strings.HasSuffix(originalPath, "/") && requestPath != "/" {
+			// 	requestPath = requestPath + "/"
+			// }
 
-			if strings.HasSuffix(requestPath, "/") {
-				fileServer.ServeHTTP(w, r)
-				return
-			}
+			// if strings.HasSuffix(requestPath, "/") {
+			// 	fileServer.ServeHTTP(w, r)
+			// 	return
+			// }
 
+			log.Infof("REQ PATH: %s", requestPath)
+			
 			if _, ok := staticResourceMap[requestPath]; ok {
 				fileServer.ServeHTTP(w, r)
 			} else {
