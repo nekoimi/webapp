@@ -38,9 +38,6 @@ var (
 	replaceEnvExtMap = map[string]bool{
 		".html": true, ".js": true, ".css": true, ".json": true,
 	}
-	staticResourceMap = map[string]bool{
-		"/favicon.ico": true,
-	}
 )
 
 type FileHandle func(fileAbs string) error
@@ -140,7 +137,6 @@ func initStaticResources() {
 		// cache static resource path
 		resourcePath := strings.ReplaceAll(fileAbs, workspaceDir, "")
 		log.Infof("ResourcePath: %s", resourcePath)
-		staticResourceMap[resourcePath] = true
 
 		toFileAbs := strings.ReplaceAll(fileAbs, workspaceDir, rootDir)
 		log.Infof("Copy %s to %s", fileAbs, toFileAbs)
@@ -251,45 +247,22 @@ func LoopFileHandle(fileAbs string, fileHandle FileHandle) {
 }
 
 func WebAppFileServer(root http.FileSystem) http.Handler {
-	const indexPage = "/index.html"
 	fileServer := http.FileServer(root)
 	http.Handle("/", fileServer)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Server", AppName)
 
-		if !redirectIndex {
-			fileServer.ServeHTTP(w, r)
-		} else {
-			originalPath := r.URL.Path
-			requestPath := path.Clean(originalPath)
-			if !strings.HasPrefix(requestPath, "/") {
-				requestPath = "/" + requestPath
-			}
-
-			// if strings.HasSuffix(originalPath, "/") && requestPath != "/" {
-			// 	requestPath = requestPath + "/"
-			// }
-
-			// if strings.HasSuffix(requestPath, "/") {
-			// 	fileServer.ServeHTTP(w, r)
-			// 	return
-			// }
-
-			log.Infof("REQ PATH: %s", requestPath)
-
-			if _, ok := staticResourceMap[requestPath]; ok {
-				fileServer.ServeHTTP(w, r)
-			} else {
-				if indexBytes, err := os.ReadFile(rootDir + indexPage); err != nil {
-					log.Errorf("Custom 404 handler error, [%s] %s", requestPath, err.Error())
-					fileServer.ServeHTTP(w, r)
-				} else {
-					log.Infof("Write index.html")
-					w.Header().Set("Content-Type", "text/xml; charset=utf-8")
-					_, _ = w.Write(indexBytes)
-				}
+		originalPath := r.URL.Path
+		dstFilePath := path.Clean(rootDir + originalPath)
+		_, err := os.Stat(dstFilePath)
+		if os.IsNotExist(err) {
+			if redirectIndex {
+				log.Debugf("Rewrite %s to index.html", originalPath)
+				r.URL.Path = "/index.html"
 			}
 		}
+
+		fileServer.ServeHTTP(w, r)
 	})
 }
 
