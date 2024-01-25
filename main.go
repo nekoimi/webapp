@@ -45,7 +45,7 @@ type FileHandle func(fileAbs string) error
 func init() {
 	// fix http.FileServer mime types
 	// see: https://stackoverflow.com/questions/70716366/how-can-i-set-correct-http-fileserver-mime-types
-	mime.AddExtensionType(".js", "application/javascript")
+	_ = mime.AddExtensionType(".js", "application/javascript")
 
 	// init log
 	initLog()
@@ -257,12 +257,17 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 		_, err := os.Stat(dstFilePath)
 		if os.IsNotExist(err) {
 			if redirectIndex {
-				log.Infof("Rewrite %s(%s) to index.html", originalPath, dstFilePath)
-				r.URL.Path = "/index.html"
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				if indexBytes, err := os.ReadFile(rootDir + "/index.html"); err != nil {
+					log.Errorf("Custom 404 handler error, [%s] %s", originalPath, err.Error())
+					fileServer.ServeHTTP(w, r)
+				} else {
+					log.Infof("Rewrite %s(%s) to index.html", originalPath, dstFilePath)
+					w.Header().Set("Content-Type", "text/html; charset=utf-8")
+					_, _ = w.Write(indexBytes)
+				}
+				return
 			}
 		}
-
 		fileServer.ServeHTTP(w, r)
 	})
 }
