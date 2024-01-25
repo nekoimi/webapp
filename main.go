@@ -276,7 +276,7 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 			// }
 
 			log.Infof("REQ PATH: %s", requestPath)
-			
+
 			if _, ok := staticResourceMap[requestPath]; ok {
 				fileServer.ServeHTTP(w, r)
 			} else {
@@ -284,7 +284,9 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 					log.Errorf("Custom 404 handler error, [%s] %s", requestPath, err.Error())
 					fileServer.ServeHTTP(w, r)
 				} else {
-					w.Write(indexBytes)
+					log.Infof("Write index.html")
+					w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+					_, _ = w.Write(indexBytes)
 				}
 			}
 		}
