@@ -259,6 +259,7 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 			if redirectIndex {
 				log.Debugf("Rewrite %s to index.html", originalPath)
 				r.URL.Path = "/index.html"
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			}
 		}
 
