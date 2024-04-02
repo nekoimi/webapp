@@ -21,12 +21,14 @@ const (
 	AppEnvPrefix             = "WEBAPP_ENV."
 	EnvPort                  = "PORT"
 	EnvDef                   = "ENV_DEF"
+	EnvBaseUrl               = "BASE_URL"
 	EnvNotFoundRedirectIndex = "REDIRECT_INDEX"
 )
 
 var (
 	port          = 80
 	redirectIndex = true
+	baseUrl       = ""
 	workspaceDir  = "/workspace"
 	rootDir       = "/public"
 	log           = logging.MustGetLogger(AppName)
@@ -81,6 +83,11 @@ func initEnv() {
 	if ok {
 		port, _ = strconv.Atoi(envResult)
 		log.Infof("Read Env: %s => %d", EnvPort, port)
+	}
+	envResult, ok = os.LookupEnv(EnvBaseUrl)
+	if ok {
+		baseUrl = envResult
+		log.Infof("Read Env: %s => %d", EnvBaseUrl, baseUrl)
 	}
 	envResult, ok = os.LookupEnv(EnvNotFoundRedirectIndex)
 	if ok {
@@ -253,7 +260,19 @@ func WebAppFileServer(root http.FileSystem) http.Handler {
 		w.Header().Add("Server", AppName)
 
 		originalPath := r.URL.Path
+		log.Infof("OriginalPath: %s", originalPath)
+
+		if strings.TrimSpace(baseUrl) != "" && strings.HasPrefix(originalPath, baseUrl) {
+			cutStr, found := strings.CutPrefix(originalPath, baseUrl)
+			if found {
+				originalPath = cutStr
+				log.Infof("Cut OriginalPath: %s", originalPath)
+			}
+		}
+
 		dstFilePath := path.Clean(rootDir + originalPath)
+		log.Infof("dstFilePath: %s", dstFilePath)
+
 		_, err := os.Stat(dstFilePath)
 		if os.IsNotExist(err) {
 			if redirectIndex {
