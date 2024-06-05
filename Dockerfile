@@ -8,20 +8,18 @@ ENV GOPROXY=https://mirrors.aliyun.com/goproxy/
 WORKDIR /build
 COPY . .
 RUN go install
-RUN go build --ldflags "-extldflags -static" -o webapp-go main.go
+RUN go build --ldflags "-extldflags -static" -o webapp main.go
 
-FROM alpine:3.16.3
+FROM nginx:alpine-slim
 
 LABEL maintainer="nekoimi <nekoimime@gmail.com>"
 
-COPY --from=builder /build/webapp-go /go/bin/webapp-go
+COPY --from=builder /build/webapp /webapp
 
 ENV TZ=Asia/Shanghai
-ENV PORT=80
 
 WORKDIR /workspace
-RUN mkdir -p /public
 
 EXPOSE 80
 
-CMD ["/go/bin/webapp-go"]
+CMD ["nginx", "-g", "daemon off;"]
