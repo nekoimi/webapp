@@ -14,7 +14,8 @@ FROM nginx:alpine-slim
 
 LABEL maintainer="nekoimi <nekoimime@gmail.com>"
 
-COPY --from=builder /build/webapp /webapp
+COPY --from=builder /build/webapp   /bin/webapp
+COPY --from=builder /build/start.sh /start.sh
 
 ENV TZ=Asia/Shanghai
 
@@ -22,4 +23,4 @@ WORKDIR /workspace
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/start.sh"]

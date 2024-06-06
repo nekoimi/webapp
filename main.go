@@ -3,112 +3,71 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/op/go-logging"
 	"io"
-	"io/ioutil"
-	"mime"
-	"net/http"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 )
 
 const (
-	AppName                  = "webapp-go"
-	AppEnvPrefix             = "WEBAPP_ENV."
-	EnvPort                  = "PORT"
-	EnvDef                   = "ENV_DEF"
-	EnvNotFoundRedirectIndex = "REDIRECT_INDEX"
+	EnvDef    = "ENV_DEF"
+	EnvPrefix = "WEBAPP_ENV."
 )
 
+type fileHandle func(f string) error
+
 var (
-	port          = 80
-	redirectIndex = true
 	workspaceDir  = "/workspace"
-	rootDir       = "/public"
-	log           = logging.MustGetLogger(AppName)
-	logFormat     = logging.MustStringFormatter(
-		`%{color}%{time:15:04:05} [%{level}] %{color:reset} %{message}`,
-	)
-	sortEnvKeys      []string
-	replaceEnvMap    = make(map[string]string)
-	replaceEnvExtMap = map[string]bool{
+	nginxRootDir  = "/usr/share/nginx/html"
+	sortEnvKeys   []string
+	replaceEnvMap = make(map[string]string)
+	replaceExtMap = map[string]bool{
 		".html": true, ".js": true, ".css": true, ".json": true,
 	}
 )
 
-type FileHandle func(fileAbs string) error
-
 func init() {
-	// fix http.FileServer mime types
-	// see: https://stackoverflow.com/questions/70716366/how-can-i-set-correct-http-fileserver-mime-types
-	_ = mime.AddExtensionType(".js", "application/javascript")
-
-	// init log
-	initLog()
-
-	// init env
-	initEnv()
-
-	// init static resources
-	initStaticResources()
+	log.SetFlags(log.Lshortfile | log.Ldate | log.Lmicroseconds)
+	loadWebappEnv()
 }
 
-func initLog() {
-	infoBackend := logging.NewLogBackend(os.Stdout, "", 0)
-	infoFormatter := logging.NewBackendFormatter(infoBackend, logFormat)
-	infoLeveled := logging.AddModuleLevel(infoFormatter)
-	infoLeveled.SetLevel(logging.INFO, "")
+func loadWebappEnv() {
+	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+	var (
+		ok        bool
+		lookupVal string
+		envKey    string
+		envVal    string
+	)
 
-	errorBackend := logging.NewLogBackend(os.Stderr, "", 0)
-	errorFormatter := logging.NewBackendFormatter(errorBackend, logFormat)
-	errorLeveled := logging.AddModuleLevel(errorFormatter)
-	errorLeveled.SetLevel(logging.ERROR, "")
-
-	logging.SetBackend(infoLeveled, errorLeveled)
-}
-
-func initEnv() {
-	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-	var ok bool
-	var envResult string
-	var envName string
-	var envValue string
-	envResult, ok = os.LookupEnv(EnvPort)
+	// 兼容老版本写法
+	lookupVal, ok = os.LookupEnv(EnvDef)
 	if ok {
-		port, _ = strconv.Atoi(envResult)
-		log.Infof("Read Env: %s => %d", EnvPort, port)
-	}
-	envResult, ok = os.LookupEnv(EnvNotFoundRedirectIndex)
-	if ok {
-		redirectIndex, _ = strconv.ParseBool(envResult)
-		log.Infof("Read Env: %s => %d", EnvNotFoundRedirectIndex, redirectIndex)
-	}
-	envResult, ok = os.LookupEnv(EnvDef)
-	if ok {
-		log.Infof("Read Env: %s => %s", EnvDef, envResult)
-		for _, envName = range strings.Split(envResult, " ") {
-			envValue, ok = os.LookupEnv(envName)
+		for _, envKey = range strings.Split(lookupVal, " ") {
+			envVal, ok = os.LookupEnv(envKey)
 			if ok {
-				log.Infof("Read Env: %s => %s", envName, envValue)
-				replaceEnvMap[envName] = envValue
+				log.Printf("Read Env: %s => %s", envKey, envVal)
+				replaceEnvMap[envKey] = envVal
 			}
 		}
 	}
+
+	// 读取系统环境变量
+	// 获取 WEBAPP_ENV. 为前缀的环境变量
 	systemEnvs := os.Environ()
 	for _, systemEnv := range systemEnvs {
 		parts := strings.SplitN(systemEnv, "=", 2)
 		if len(parts) == 2 {
-			systemEnvName := parts[0]
-			if strings.HasPrefix(systemEnvName, AppEnvPrefix) {
-				envValue, ok = os.LookupEnv(systemEnvName)
+			systemEnvKey := parts[0]
+			if strings.HasPrefix(systemEnvKey, EnvPrefix) {
+				envVal, ok = os.LookupEnv(systemEnvKey)
 				if ok {
-					replaceEnvName := strings.Replace(systemEnvName, AppEnvPrefix, "", 1)
-					log.Infof("Read Env: %s => %s", replaceEnvName, envValue)
-					replaceEnvMap[replaceEnvName] = envValue
+					envKey = strings.Replace(systemEnvKey, EnvPrefix, "", 1)
+					log.Printf("Read Env: %s => %s", envKey, envVal)
+					replaceEnvMap[envKey] = envVal
 				}
 			}
 		}
@@ -119,48 +78,18 @@ func initEnv() {
 		sortEnvKeys = append(sortEnvKeys, k)
 	}
 
+	// 排序，优先替换名称长的环境变量
 	sort.Slice(sortEnvKeys, func(i, j int) bool {
 		return len(sortEnvKeys[i]) > len(sortEnvKeys[j])
 	})
 
 	for _, key := range sortEnvKeys {
-		log.Infof("Sort Env: %s", key)
+		log.Printf("Sort Env: %s", key)
 	}
-	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
-func initStaticResources() {
-	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-	// Copy workspace dir to root dir, and replace env
-	var err error
-	LoopFileHandle(workspaceDir, func(fileAbs string) error {
-		// cache static resource path
-		resourcePath := strings.ReplaceAll(fileAbs, workspaceDir, "")
-		log.Infof("ResourcePath: %s", resourcePath)
-
-		toFileAbs := strings.ReplaceAll(fileAbs, workspaceDir, rootDir)
-		log.Infof("Copy %s to %s", fileAbs, toFileAbs)
-		if err = CopyFile(fileAbs, toFileAbs); err != nil {
-			return err
-		} else {
-			ext := filepath.Ext(toFileAbs)
-			if _, ok := replaceEnvExtMap[ext]; !ok {
-				log.Infof("Ext: %s, Ignore replace.", ext)
-				return nil
-			}
-
-			for _, k := range sortEnvKeys {
-				if err = ReplaceEnvFile(toFileAbs, k, replaceEnvMap[k]); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	})
-	log.Info(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-}
-
-func CopyFile(source, target string) error {
+func copyFile(source, target string) error {
 	var err error
 	var sourceName string
 	var targetDir string
@@ -196,88 +125,82 @@ func CopyFile(source, target string) error {
 	return os.Chmod(target, sourceInfo.Mode())
 }
 
-func ReplaceEnvFile(fileAbs, envName, envValue string) error {
-	readBytes, err := ioutil.ReadFile(fileAbs)
+func replaceEnv(f, envKey, envVal string) error {
+	bytes, err := os.ReadFile(f)
 	if err != nil {
-		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Read file [%s] error, %s", fileAbs, err.Error()))
+		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Read file [%s] error, %s", f, err.Error()))
 	}
-	log.Infof("Replace %s with %s in the %s", envName, envValue, fileAbs)
-	var replaceContent = string(readBytes)
-	if envValue == "/" {
-		replaceContent = strings.ReplaceAll(replaceContent, "/"+envName+"/", envName)
-		replaceContent = strings.ReplaceAll(replaceContent, "/"+envName, envName)
-		replaceContent = strings.ReplaceAll(replaceContent, envName+"/", envName)
+	log.Printf("Replace %s with %s in the %s", envKey, envVal, f)
+	var content = string(bytes)
+	if envVal == "/" {
+		content = strings.ReplaceAll(content, "/"+envKey+"/", envKey)
+		content = strings.ReplaceAll(content, "/"+envKey, envKey)
+		content = strings.ReplaceAll(content, envKey+"/", envKey)
 	} else {
-		if strings.HasPrefix(envValue, "/") {
-			replaceContent = strings.ReplaceAll(replaceContent, "/"+envName, envName)
+		if strings.HasPrefix(envVal, "/") {
+			content = strings.ReplaceAll(content, "/"+envKey, envKey)
 		}
-		if strings.HasSuffix(envValue, "/") {
-			replaceContent = strings.ReplaceAll(replaceContent, envName+"/", envName)
+		if strings.HasSuffix(envVal, "/") {
+			content = strings.ReplaceAll(content, envKey+"/", envKey)
 		}
 	}
-	replaceContent = strings.ReplaceAll(replaceContent, envName, envValue)
-	err = ioutil.WriteFile(fileAbs, []byte(replaceContent), 0)
+	content = strings.ReplaceAll(content, envKey, envVal)
+	err = os.WriteFile(f, []byte(content), 0)
 	if err != nil {
-		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Write file [%s] error, %s", fileAbs, err.Error()))
+		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Write file [%s] error, %s", f, err.Error()))
 	}
 	return nil
 }
 
-func LoopFileHandle(fileAbs string, fileHandle FileHandle) {
-	var err error
-	var fileInfo os.FileInfo
-	var fileInfos []os.FileInfo
-	if fileInfo, err = os.Stat(fileAbs); err != nil {
-		log.Errorf("Stat file [%s] error, %s", fileAbs, err.Error())
+func recursionFileHandle(fileAbs string, handle fileHandle) {
+	fi, err := os.Stat(fileAbs)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+
+	if fi.IsDir() {
+		entries, err := os.ReadDir(fileAbs)
+		if err != nil {
+			log.Println(err.Error())
+			return
+		}
+		for _, entry := range entries {
+			recursionFileHandle(path.Join(fileAbs, entry.Name()), handle)
+		}
 	} else {
-		if fileInfo.IsDir() {
-			if fileInfos, err = ioutil.ReadDir(fileAbs); err != nil {
-				log.Errorf("Read dir [%s] error, %s", fileAbs, err.Error())
-			} else {
-				for _, fileInfo = range fileInfos {
-					LoopFileHandle(path.Join(fileAbs, fileInfo.Name()), fileHandle)
-				}
-			}
-		} else {
-			if err = fileHandle(fileAbs); err != nil {
-				log.Error(err.Error())
-			}
+		if err = handle(fileAbs); err != nil {
+			log.Println(err.Error())
 		}
 	}
 }
 
-func WebAppFileServer(root http.FileSystem) http.Handler {
-	fileServer := http.FileServer(root)
-	http.Handle("/", fileServer)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Server", AppName)
-
-		originalPath := r.URL.Path
-		dstFilePath := path.Clean(rootDir + originalPath)
-		log.Infof("OriginalPath: %s, DistFilePath: %s", originalPath, dstFilePath)
-		_, err := os.Stat(dstFilePath)
-		if os.IsNotExist(err) {
-			if redirectIndex {
-				if indexBytes, err := os.ReadFile(rootDir + "/index.html"); err != nil {
-					log.Errorf("Custom 404 handler error, [%s] %s", originalPath, err.Error())
-					fileServer.ServeHTTP(w, r)
-				} else {
-					log.Infof("Rewrite %s(%s) to index.html", originalPath, dstFilePath)
-					w.Header().Set("Content-Type", "text/html; charset=utf-8")
-					_, _ = w.Write(indexBytes)
-				}
-				return
+func loadNginxDist() {
+	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+	var err error
+	recursionFileHandle(workspaceDir, func(f string) error {
+		toAbs := strings.Replace(f, workspaceDir, nginxRootDir, 1)
+		log.Printf("Copy %s to %s", f, toAbs)
+		if err = copyFile(f, toAbs); err != nil {
+			return err
+		} else {
+			ext := filepath.Ext(toAbs)
+			if _, ok := replaceExtMap[ext]; !ok {
+				log.Printf("Ext: %s, Ignore replace.", ext)
+				return nil
 			}
+
+			for _, k := range sortEnvKeys {
+				if err = replaceEnv(toAbs, k, replaceEnvMap[k]); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		fileServer.ServeHTTP(w, r)
 	})
+	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
 func main() {
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), WebAppFileServer(http.Dir(rootDir)))
-	if err != nil {
-		log.Error(err.Error())
-	} else {
-		log.Infof("webapp-go started on port %s", port)
-	}
+	loadNginxDist()
 }
