@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,8 +16,6 @@ const (
 	EnvDef    = "ENV_DEF"
 	EnvPrefix = "WEBAPP_ENV."
 )
-
-type fileHandle func(f string) error
 
 var (
 	workspaceDir  = "/workspace"
@@ -57,15 +55,15 @@ func loadWebappEnv() {
 
 	// 读取系统环境变量
 	// 获取 WEBAPP_ENV. 为前缀的环境变量
-	systemEnvs := os.Environ()
-	for _, systemEnv := range systemEnvs {
-		parts := strings.SplitN(systemEnv, "=", 2)
+	sysEnvs := os.Environ()
+	for _, sysEnv := range sysEnvs {
+		parts := strings.SplitN(sysEnv, "=", 2)
 		if len(parts) == 2 {
-			systemEnvKey := parts[0]
-			if strings.HasPrefix(systemEnvKey, EnvPrefix) {
-				envVal, ok = os.LookupEnv(systemEnvKey)
+			sysEnvKey := parts[0]
+			if strings.HasPrefix(sysEnvKey, EnvPrefix) {
+				envVal, ok = os.LookupEnv(sysEnvKey)
 				if ok {
-					envKey = strings.Replace(systemEnvKey, EnvPrefix, "", 1)
+					envKey = strings.Replace(sysEnvKey, EnvPrefix, "", 1)
 					log.Printf("Read Env: %s => %s", envKey, envVal)
 					replaceEnvMap[envKey] = envVal
 				}
@@ -89,49 +87,77 @@ func loadWebappEnv() {
 	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
-func copyFile(source, target string) error {
-	var err error
-	var sourceName string
-	var targetDir string
-	var sourceFd *os.File
-	var targetFd *os.File
-	var sourceInfo os.FileInfo
-
-	if sourceInfo, err = os.Stat(source); err != nil {
-		return errors.New(fmt.Sprintf("[CopyFile] Stat source file [%s] error, %s", source, err.Error()))
+func fileExists(f string) (bool, error) {
+	if _, err := os.Stat(f); err == nil {
+		// f exists
+		return true, nil
+	} else if errors.Is(err, os.ErrNotExist) {
+		// f does not exists
+		return false, nil
+	} else {
+		// f stat err, return false and err
+		return false, err
 	}
-	sourceName = sourceInfo.Name()
-	targetDir = strings.Replace(target, sourceName, "", -1)
-	if _, err = os.Stat(targetDir); err != nil {
-		if err = os.MkdirAll(targetDir, os.ModeDir); err != nil {
-			return errors.New(fmt.Sprintf("[CopyFile] Mkdir target dir [%s] error, %s", targetDir, err.Error()))
+}
+
+func copyFile(src, dst string) error {
+	if exists, err := fileExists(src); err != nil {
+		return err
+	} else if !exists {
+		return errors.New("file " + src + " does not exists")
+	}
+
+	if sfi, err := os.Lstat(src); err != nil {
+		return err
+	} else {
+		sf, err := os.Open(src)
+		defer sf.Close()
+		if err != nil {
+			return err
 		}
-	}
 
-	if sourceFd, err = os.Open(source); err != nil {
-		return errors.New(fmt.Sprintf("[CopyFile] Open source file [%s] error, %s", source, err.Error()))
-	}
-	defer sourceFd.Close()
+		df, err := os.Create(dst)
+		defer df.Close()
 
-	if targetFd, err = os.Create(target); err != nil {
-		return errors.New(fmt.Sprintf("[CopyFile] Craete target file [%s] error, %s", target, err.Error()))
-	}
-	defer targetFd.Close()
+		_, err = io.Copy(df, sf)
+		if err != nil {
+			return err
+		}
 
-	if _, err = io.Copy(targetFd, sourceFd); err != nil {
-		return errors.New(fmt.Sprintf("[CopyFile] Copy file [%s] to [%s] error, %s", source, target, err.Error()))
+		return os.Chmod(dst, sfi.Mode())
 	}
+}
 
-	return os.Chmod(target, sourceInfo.Mode())
+func copyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		relativePath := strings.Replace(path, src, "", 1)
+		if len(relativePath) == 0 {
+			return nil
+		}
+
+		dstPath := filepath.Join(dst, relativePath)
+		if d.IsDir() {
+			if exists, err := fileExists(dstPath); err != nil {
+				return err
+			} else if !exists {
+				if err := os.Mkdir(dstPath, os.ModeDir); err != nil {
+					return err
+				}
+			}
+		} else {
+			return copyFile(path, dstPath)
+		}
+		return nil
+	})
 }
 
 func replaceEnv(f, envKey, envVal string) error {
-	bytes, err := os.ReadFile(f)
+	byteArr, err := os.ReadFile(f)
 	if err != nil {
-		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Read file [%s] error, %s", f, err.Error()))
+		return errors.New(fmt.Sprintf("[ReplaceEnv] Read file [%s] error, %s", f, err.Error()))
 	}
 	log.Printf("Replace %s with %s in the %s", envKey, envVal, f)
-	var content = string(bytes)
+	var content = string(byteArr)
 	if envVal == "/" {
 		content = strings.ReplaceAll(content, "/"+envKey+"/", envKey)
 		content = strings.ReplaceAll(content, "/"+envKey, envKey)
@@ -147,56 +173,35 @@ func replaceEnv(f, envKey, envVal string) error {
 	content = strings.ReplaceAll(content, envKey, envVal)
 	err = os.WriteFile(f, []byte(content), 0)
 	if err != nil {
-		return errors.New(fmt.Sprintf("[ReplaceEnvFile] Write file [%s] error, %s", f, err.Error()))
+		return errors.New(fmt.Sprintf("[ReplaceEnv] Write file [%s] error, %s", f, err.Error()))
 	}
 	return nil
 }
 
-func recursionFileHandle(fileAbs string, handle fileHandle) {
-	fi, err := os.Stat(fileAbs)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-
-	if fi.IsDir() {
-		entries, err := os.ReadDir(fileAbs)
-		if err != nil {
-			log.Println(err.Error())
-			return
-		}
-		for _, entry := range entries {
-			recursionFileHandle(path.Join(fileAbs, entry.Name()), handle)
-		}
-	} else {
-		if err = handle(fileAbs); err != nil {
-			log.Println(err.Error())
-		}
-	}
-}
-
 func loadNginxDist() {
 	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-	var err error
-	recursionFileHandle(workspaceDir, func(f string) error {
-		toAbs := strings.Replace(f, workspaceDir, nginxRootDir, 1)
-		log.Printf("Copy %s to %s", f, toAbs)
-		if err = copyFile(f, toAbs); err != nil {
-			return err
-		} else {
-			ext := filepath.Ext(toAbs)
-			if _, ok := replaceExtMap[ext]; !ok {
-				log.Printf("Ext: %s, Ignore replace.", ext)
-				return nil
-			}
+	err := copyDir(workspaceDir, nginxRootDir)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
 
-			for _, k := range sortEnvKeys {
-				if err = replaceEnv(toAbs, k, replaceEnvMap[k]); err != nil {
-					return err
-				}
-			}
+	_ = filepath.WalkDir(nginxRootDir, func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
 			return nil
 		}
+
+		ext := filepath.Ext(path)
+		if _, ok := replaceExtMap[ext]; !ok {
+			log.Printf("Ext: %s, Ignore replace.", ext)
+			return nil
+		}
+
+		for _, k := range sortEnvKeys {
+			if err = replaceEnv(path, k, replaceEnvMap[k]); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy End <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
