@@ -38,6 +38,4 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags:
-            - nekoimi/webapp:2.1.0-dev
-            - nekoimi/webapp:latest
+          tags: nekoimi/webapp:latest
