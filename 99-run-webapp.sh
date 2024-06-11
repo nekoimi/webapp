@@ -1,3 +1,3 @@
 #!/bin/sh
 
-webapp
+webapp && chown -R nginx:nginx /usr/share/nginx/html
