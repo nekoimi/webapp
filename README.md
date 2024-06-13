@@ -15,8 +15,6 @@
 
 ### Docker Image
 
-- [DockerHub](https://hub.docker.com/r/nekoimi/webapp)
-
 ```bash
 docker pull ghcr.io/nekoimi/webapp:latest
 ```
@@ -31,12 +29,12 @@ docker pull ghcr.io/nekoimi/webapp:latest
 
 ### 例子
 
-生成dist产物例子: [repo](https://github.com/nekoimi/docker-webapp-go.git)
+生成dist产物例子: [repo](https://github.com/nekoimi/webapp.git)
 
 step1:
 
 ```bash
-git clone https://github.com/nekoimi/docker-webapp-go.git
+git clone https://github.com/nekoimi/webapp.git
 ```
 
 step2:
