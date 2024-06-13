@@ -18,7 +18,7 @@
 - [DockerHub](https://hub.docker.com/r/nekoimi/webapp)
 
 ```bash
-docker pull nekoimi/webapp:latest
+docker pull ghcr.io/nekoimi/webapp:latest
 ```
 
 <br>
@@ -58,11 +58,10 @@ step3:
 version: "3.6"
 services:
   test:
-    image: nekoimi/webapp:latest
+    image: ghcr.io/nekoimi/webapp:latest
     ports:
       - "80:80"
     environment:
-      PORT: 80
       WEBAPP_ENV.API_SERVER_URL: http://127.0.0.1/api
       WEBAPP_ENV.APP_NAME: 测试web
       WEBAPP_ENV.BACKGROUND_IMAGE: image.png
@@ -78,7 +77,7 @@ services:
 
 ``` bash
 # Dockerfile
-FROM nekoimi/webapp:latest
+FROM ghcr.io/nekoimi/webapp:latest
 
 COPY /dist    /workspace
 ```
