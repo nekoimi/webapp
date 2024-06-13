@@ -1,3 +1,3 @@
-module github.com/nekoimi/docker-webapp-go
+module github.com/nekoimi/webapp
 
 go 1.20
