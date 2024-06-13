@@ -3,13 +3,10 @@ name: CR Image CI
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
-    paths-ignore:
-      - README.md
-      - example
-      - LICENSE
-  pull_request:
-    branches: [ master ]
+    branches:
+      - master
+    tags:
+      - "v*"
     paths-ignore:
       - README.md
       - example
