@@ -29,24 +29,21 @@ var (
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Lmicroseconds)
-	loadWebappEnv()
+	loadEnv()
 }
 
-func loadWebappEnv() {
+func loadEnv() {
 	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> LoadEnv Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	var (
-		ok        bool
 		lookupVal string
 		envKey    string
 		envVal    string
 	)
 
 	// 兼容老版本写法
-	lookupVal, ok = os.LookupEnv(EnvDef)
-	if ok {
+	if lookupVal = os.Getenv(EnvDef); lookupVal != "" {
 		for _, envKey = range strings.Split(lookupVal, " ") {
-			envVal, ok = os.LookupEnv(envKey)
-			if ok {
+			if envVal = os.Getenv(envKey); envVal != "" {
 				log.Printf("Read Env: %s => %s", envKey, envVal)
 				replaceEnvMap[envKey] = envVal
 			}
@@ -61,8 +58,7 @@ func loadWebappEnv() {
 		if len(parts) == 2 {
 			sysEnvKey := parts[0]
 			if strings.HasPrefix(sysEnvKey, EnvPrefix) {
-				envVal, ok = os.LookupEnv(sysEnvKey)
-				if ok {
+				if envVal = os.Getenv(sysEnvKey); envVal != "" {
 					envKey = strings.Replace(sysEnvKey, EnvPrefix, "", 1)
 					log.Printf("Read Env: %s => %s", envKey, envVal)
 					replaceEnvMap[envKey] = envVal
@@ -178,7 +174,7 @@ func replaceEnv(f, envKey, envVal string) error {
 	return nil
 }
 
-func loadNginxDist() {
+func deploy() {
 	log.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>> Deploy Start <<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	err := copyDir(workspaceDir, nginxRootDir)
 	if err != nil {
@@ -207,5 +203,5 @@ func loadNginxDist() {
 }
 
 func main() {
-	loadNginxDist()
+	deploy()
 }

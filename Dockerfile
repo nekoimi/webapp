@@ -15,6 +15,7 @@ FROM nginx:alpine-slim
 LABEL maintainer="nekoimi <nekoimime@gmail.com>"
 
 ENV TZ=Asia/Shanghai
+ENV PORT=80
 
 COPY --from=builder /build/webapp                   /bin/webapp
 COPY --from=builder /build/99-run-webapp.sh         /docker-entrypoint.d/99-run-webapp.sh
