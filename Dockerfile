@@ -1,8 +1,8 @@
 FROM golang:1.20.5 AS builder
 
 ENV CGO_ENABLED=0
-ENV GOOS=linux
-ENV GOARCH=amd64
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
 ENV GOPROXY=https://mirrors.aliyun.com/goproxy/
 
 WORKDIR /build
